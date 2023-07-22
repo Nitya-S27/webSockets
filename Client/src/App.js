@@ -1,25 +1,43 @@
-import React, { useEffect, useRef, useState } from "react";
-import { w3cwebsocket as WebSocket } from "websocket";
+import React, { Component } from "react";
+import { w3cwebsocket as W3CWebSocket } from "websocket";
+import { Card, Avatar, Input, Typography } from "antd";
+import { MetroSpinner } from "react-spinners-kit";
+import "./app.css";
 
-const App = () => {
-  const [inputState, setInputState] = useState({
+const { Search } = Input;
+const { Text } = Typography;
+const { Meta } = Card;
+
+const client = new W3CWebSocket("ws://127.0.0.1:8000");
+
+export default class App extends Component {
+  state = {
     userName: "",
+    isLoggedIn: false,
     messages: [],
-  });
-  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
-  const usernameRef = useRef(null);
+  };
 
-  const client = new WebSocket("ws://127.0.0.1:8000");
-  useEffect(() => {
+  onButtonClicked = (value) => {
+    client.send(
+      JSON.stringify({
+        type: "message",
+        msg: value,
+        user: this.state.userName,
+      })
+    );
+    this.setState({ searchVal: "" });
+    this.setState({ loading: true });
+  };
+  componentDidMount() {
     client.onopen = () => {
-      console.log("WebSocket Client Connected.");
+      console.log("WebSocket Client Connected");
     };
     client.onmessage = (message) => {
+      this.setState({ loading: false });
       const dataFromServer = JSON.parse(message.data);
       console.log("got reply! ", dataFromServer);
       if (dataFromServer.type === "message") {
-        setInputState((state) => ({
-          ...state,
+        this.setState((state) => ({
           messages: [
             ...state.messages,
             {
@@ -30,57 +48,91 @@ const App = () => {
         }));
       }
     };
-  }, []);
+  }
+  render() {
+    return (
+      <div className="main" id="wrapper">
+        {this.state.isLoggedIn ? (
+          <div>
+            <div className="title">
+              <Text
+                id="main-heading"
+                type="secondary"
+                style={{ fontSize: "36px" }}
+              >
+                WebSocket Chat Application <br />
+                By Nitya Singh (Intern ID- CC37888)
+              </Text>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                paddingBottom: 50,
+              }}
+              id="messages"
+            >
+              {this.state.messages.map((message) => (
+                <Card
+                  key={message.msg}
+                  style={{
+                    width: 300,
+                    margin: "16px 4px 0 4px",
+                    alignSelf:
+                      this.state.userName === message.user
+                        ? "flex-end"
+                        : "flex-start",
+                  }}
+                  loading={false}
+                >
+                  <Meta
+                    avatar={
+                      <Avatar
+                        style={{ color: "#f56a00", backgroundColor: "#fde3cf" }}
+                      >
+                        {message.user[0].toUpperCase()}
+                      </Avatar>
+                    }
+                    title={message.user + ":"}
+                    description={message.msg}
+                  />
+                </Card>
+              ))}
 
-  const buttonClickHandler = (value) => {
-    console.log(inputState);
-    client.send(
-      JSON.stringify({
-        type: "message",
-        msg: value,
-        user: inputState.userName,
-      })
+              {this.state.loading === true && (
+                <div className="bottom-1">
+                  <MetroSpinner
+                    size={30}
+                    color="#fff"
+                    loading={this.state.loading}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="bottom">
+              <Search
+                placeholder="Type a message to send"
+                enterButton="Send"
+                value={this.state.searchVal}
+                size="large"
+                onChange={(e) => this.setState({ searchVal: e.target.value })}
+                onSearch={(value) => this.onButtonClicked(value)}
+              />
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: "200px 40px" }}>
+            <Search
+              placeholder="Enter Username"
+              enterButton="Login"
+              size="large"
+              onSearch={(value) =>
+                this.setState({ isLoggedIn: true, userName: value })
+              }
+            />
+          </div>
+        )}
+      </div>
     );
-    console.log(inputState);
-  };
-  const submitForm = (e) => {
-    e.preventDefault();
-    console.log(usernameRef.current.value);
-    setInputState((prev) => ({
-      ...prev,
-      userName: usernameRef.current.value,
-    }));
-    setIsUserLoggedIn(true);
-  };
-
-  return (
-    <div className="appWrapper">
-      {console.log(inputState)}
-      {isUserLoggedIn ? (
-        <div>
-          {inputState.messages?.map((msg, index) => (
-            <p key={index}>
-              message: {msg.msg}, user: {msg.user}
-            </p>
-          ))}
-          <button
-            onClick={() => {
-              buttonClickHandler("Hello");
-            }}
-          >
-            Send
-          </button>
-        </div>
-      ) : (
-        <div className="loginComponentWrapper">
-          <form onSubmit={submitForm}>
-            <input required type="text" ref={usernameRef} />
-            <button type="submit">Login</button>
-          </form>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default App;
+  }
+}
